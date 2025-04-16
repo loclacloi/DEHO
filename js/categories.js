@@ -10,8 +10,7 @@ export async function renderCategories() {
     content.innerHTML = `
       <h2>Quản lý danh mục</h2>
       <div class="search-add">
-          <input type="text" id="searchCategoryInput" placeholder="🔍 Tìm danh mục..." />
-
+        <input type="text" id="searchCategoryInput" placeholder="🔍 Tìm danh mục..." />
         <button id="addCategoryBtn">➕ Thêm danh mục</button>
       </div>
 
@@ -21,7 +20,7 @@ export async function renderCategories() {
         </thead>
         <tbody>
           ${categories.map((c, i) => `
-            <tr>
+            <tr data-id="${c._id}">
               <td>${i + 1}</td>
               <td>${c.name}</td>
               <td>${c.slug}</td>
@@ -39,55 +38,52 @@ export async function renderCategories() {
     document.getElementById("addCategoryBtn").onclick = showAddForm;
     document.querySelectorAll(".editBtn").forEach(btn => btn.onclick = () => showEditForm(btn.dataset.id));
     document.querySelectorAll(".deleteBtn").forEach(btn => btn.onclick = () => deleteCategory(btn.dataset.id));
+
+    document.getElementById("searchCategoryInput").oninput = (e) => {
+      const keyword = e.target.value.trim().toLowerCase();
+      const rows = document.querySelectorAll("tbody tr");
+      rows.forEach((row) => {
+        const name = row.children[1].textContent.toLowerCase();
+        row.style.display = name.includes(keyword) ? "table-row" : "none";
+      });
+    };
   } catch (err) {
     console.error("Lỗi khi tải danh mục:", err);
   }
-  document.getElementById("searchCategoryInput").oninput = (e) => {
-    const keyword = e.target.value.trim().toLowerCase();
-    const rows = document.querySelectorAll("tbody tr");
-  
-    rows.forEach((row) => {
-      const name = row.children[1].textContent.toLowerCase();
-      row.style.display = name.includes(keyword) ? "table-row" : "none";
-    });
-  };
-  
 }
-
-// ------------------- FORM POPUP --------------------
-
+function updateRowNumbers() {
+  const rows = document.querySelectorAll("tbody tr");
+  rows.forEach((row, index) => {
+    row.children[0].textContent = index + 1; // Cập nhật cột STT
+  });
+}
+// -------- Modal --------
 function openModal(contentHTML) {
   document.getElementById("modalBody").innerHTML = contentHTML;
   document.getElementById("categoryModal").style.display = "block";
 }
-
 function closeModal() {
   document.getElementById("categoryModal").style.display = "none";
 }
+window.closeModal = closeModal;
 
-window.closeModal = closeModal;   
-
-
+// -------- Thêm --------
 function showAddForm() {
   openModal(`
-    <h3 style="margin-bottom: 10px;">Thêm danh mục mới</h3>
+    <h3>Thêm danh mục mới</h3>
     <form id="addForm" enctype="multipart/form-data">
       <label>Tên danh mục</label>
-      <input name="name" placeholder="Tên danh mục" required />
-
+      <input name="name" required />
       <label>Slug</label>
-      <input name="slug" placeholder="Slug" required />
-
+      <input name="slug" required />
       <label>Hình ảnh</label>
       <input type="file" name="image" required />
-
       <button type="submit">Thêm</button>
     </form>
   `);
   document.getElementById("addForm").onsubmit = handleAddSubmit;
 }
 
-// Gửi form thêm
 async function handleAddSubmit(e) {
   e.preventDefault();
   const formData = new FormData(e.target);
@@ -101,37 +97,60 @@ async function handleAddSubmit(e) {
     if (result.success) {
       alert("✅ Thêm thành công");
       closeModal();
-      renderCategories();
+
+      const newCat = result.data;
+
+      const tbody = document.querySelector("tbody");
+      const newRow = document.createElement("tr");
+      newRow.setAttribute("data-id", newCat._id);
+      newRow.innerHTML = `
+        <td></td> <!-- STT sẽ được cập nhật -->
+        <td>${newCat.name}</td>
+        <td>${newCat.slug}</td>
+        <td><img src="${newCat.image}" width="50" /></td>
+        <td>
+          <button class="editBtn" data-id="${newCat._id}">Sửa</button>
+          <button class="deleteBtn" data-id="${newCat._id}">Xóa</button>
+        </td>
+      `;
+      tbody.appendChild(newRow);
+
+      newRow.querySelector(".editBtn").onclick = () => showEditForm(newCat._id);
+      newRow.querySelector(".deleteBtn").onclick = () => deleteCategory(newCat._id);
+
+      updateRowNumbers(); // Cập nhật STT
     } else throw new Error(result.message);
   } catch (err) {
     alert("❌ " + err.message);
   }
 }
 
-// Hiển thị form sửa
+// -------- Sửa --------
 async function showEditForm(id) {
   try {
-    const res = await fetch(categoriesURL);
+    const res = await fetch(`${categoriesURL}`);
     const json = await res.json();
     const category = json.data.find(c => c._id === id);
 
     openModal(`
       <h3>Sửa danh mục</h3>
       <form id="editForm">
+        <label>Tên danh mục</label>
         <input name="name" value="${category.name}" required />
+        <label>Slug</label>
         <input name="slug" value="${category.slug}" required />
         <input type="hidden" name="oldImage" value="${category.image}" />
+        <label>Hình ảnh (nếu cần thay)</label>
         <input type="file" name="image" />
         <button type="submit">Cập nhật</button>
       </form>
     `);
     document.getElementById("editForm").onsubmit = (e) => handleEditSubmit(e, id);
   } catch (err) {
-    alert("Không thể lấy thông tin danh mục");
+    alert("❌ Không thể tải danh mục");
   }
 }
 
-// Gửi form sửa
 async function handleEditSubmit(e, id) {
   e.preventDefault();
   const formData = new FormData(e.target);
@@ -145,14 +164,28 @@ async function handleEditSubmit(e, id) {
     if (result.success) {
       alert("✅ Cập nhật thành công");
       closeModal();
-      renderCategories();
+
+      const row = document.querySelector(`.editBtn[data-id="${id}"]`)?.closest("tr");
+      if (row) {
+        row.children[1].textContent = e.target.name.value;
+        row.children[2].textContent = e.target.slug.value;
+
+        const fileInput = e.target.image;
+        if (fileInput.files.length > 0) {
+          const reader = new FileReader();
+          reader.onload = e => {
+            row.children[3].querySelector("img").src = e.target.result;
+          };
+          reader.readAsDataURL(fileInput.files[0]);
+        }
+      }
     } else throw new Error(result.message);
   } catch (err) {
     alert("❌ " + err.message);
   }
 }
 
-// Xóa danh mục
+// -------- Xoá --------
 async function deleteCategory(id) {
   if (!confirm("Bạn có chắc muốn xóa danh mục này?")) return;
   try {
@@ -161,8 +194,12 @@ async function deleteCategory(id) {
     });
     const result = await res.json();
     if (result.success) {
-      alert("✅ Đã xóa");
-      renderCategories();
+      alert("✅ Đã xoá");
+
+      const row = document.querySelector(`.deleteBtn[data-id="${id}"]`)?.closest("tr");
+      if (row) row.remove();
+
+      updateRowNumbers(); // Cập nhật STT
     } else throw new Error(result.message);
   } catch (err) {
     alert("❌ " + err.message);
