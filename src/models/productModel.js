@@ -9,7 +9,7 @@ const productSchema = new Schema({
   salePrice: { type: Number },
   thumbnail: { type: String },
   images: [String],
-  categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' }
+  categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'categories' }
 }, { timestamps: true })
 
-module.exports = mongoose.model('Product', productSchema)
+module.exports = mongoose.model('products', productSchema)

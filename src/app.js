@@ -5,6 +5,7 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 const connectDB = require('./config/db');
 const cors = require('cors')
+const nodemailer = require('nodemailer')
 const searchRoutes = require('./routes/index');
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
